@@ -36,11 +36,12 @@ class Program
             .MinimumLevel.Verbose()
             .Enrich.FromLogContext()
             .WriteTo.Console(LogEventLevel.Verbose, outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] {Properties:l} {Message:lj}{NewLine}{Exception}")
-            //.WriteTo.File(".log", rollingInterval: RollingInterval.Hour, retainedFileCountLimit: 24, outputTemplate: "{Timestamp:u} [{Level:u3}] {Properties:l} {Message:lj}{NewLine}{Exception}")
+            .WriteTo.File($".{QueueName}/.log", rollingInterval: RollingInterval.Hour, retainedFileCountLimit: 24, outputTemplate: "{Timestamp:u} [{Level:u3}] {Properties:l} {Message:lj}{NewLine}{Exception}")
             .CreateLogger();
 
         AppDomainLogger.RegisterEvents();
 
+        Log.Information("CommandLine = {0}", Environment.CommandLine);
         Log.Information("Version = {0}", Environment.Version);
         Log.Information("OSVersion = {0}", Environment.OSVersion);
         Log.Information("FrameworkDescription = {0}", RuntimeInformation.FrameworkDescription);
@@ -158,8 +159,6 @@ class Program
                         using var l = LogContext.PushProperty("Id", inMsg.MessageId);
 
                         var processingDuration = TimeSpan.FromTicks(long.Parse(inMsg.Body.ToString()));
-
-                        //⌛⏳⌚⏰⏱⏲🛑❌✅✔
 
                         Log.Information("#Delivery:{0:000} Delay:{1:mm\\:ss}", inMsg.DeliveryCount, processingDuration);
 
