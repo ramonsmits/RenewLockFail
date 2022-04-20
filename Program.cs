@@ -1,10 +1,12 @@
 ﻿using System;
 using System.Diagnostics;
+using System.Diagnostics.Tracing;
 using System.Linq.Expressions;
 using System.Reflection;
 using System.Runtime;
 using System.Runtime.InteropServices;
 using System.Transactions;
+using Azure.Core.Diagnostics;
 using Azure.Messaging.ServiceBus;
 using Azure.Messaging.ServiceBus.Administration;
 using CommandLine;
@@ -16,7 +18,7 @@ class Program
 {
     [Option] public string? ConnectionString { get; set; } = Environment.GetEnvironmentVariable("AzureServiceBus_ConnectionString");
     [Option] public TimeSpan LockDuration { get; set; } = TimeSpan.FromMinutes(5);
-    [Option] public TimeSpan ProcessingDuration { get; set; } = TimeSpan.FromMinutes(20);
+    [Option] public TimeSpan ProcessingDuration { get; set; } = TimeSpan.FromMinutes(12);
     [Option] public int MessageCount { get; set; } = 1;
     [Option] public int ConcurrencyLimit { get; set; } = Environment.ProcessorCount;
     [Option] public string QueueName { get; set; } = "lockrenewal-" + DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
@@ -38,6 +40,8 @@ class Program
             .WriteTo.Console(LogEventLevel.Verbose, outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] {Properties:l} {Message:lj}{NewLine}{Exception}")
             .WriteTo.File($".{QueueName}/.log", rollingInterval: RollingInterval.Hour, retainedFileCountLimit: 24, outputTemplate: "{Timestamp:u} [{Level:u3}] {Properties:l} {Message:lj}{NewLine}{Exception}")
             .CreateLogger();
+
+        using var listener = new AzureEventSourceListener((e, message) =>  Log.Verbose(message), level: EventLevel.Verbose);
 
         AppDomainLogger.RegisterEvents();
 
