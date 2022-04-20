@@ -187,32 +187,20 @@ class Program
                             await renewalReceiver.RenewMessageLockAsync(inMsg, exit);
                         }
 
-                        using var ctx = UseTransactions!.Value ? new CommittableTransaction(new TransactionOptions
-                        {
-                            IsolationLevel = IsolationLevel.Serializable,
-                            Timeout = TransactionManager.MaximumTimeout
-                        }) : null;
+                        using var scope = UseTransactions.Value ? new TransactionScope(TransactionScopeAsyncFlowOption.Enabled) : null;
 
                         try
                         {
                             Log.Debug("SendMessageAsync");
-                            Task sendTask;
-                            using (var scope = UseTransactions.Value ? new TransactionScope(ctx!, TransactionScopeAsyncFlowOption.Enabled) : null)
-                            {
-                                // Clone incoming message
-                                var outMsg = new ServiceBusMessage(inMsg.Body) { MessageId = $"{++messageIdCount:0000}" };
-                                sendTask = sender.SendMessageAsync(outMsg, exit);
-                                scope?.Complete();
-                            }
-                            await sendTask;
+
+                            // Clone incoming message
+                            var outMsg = new ServiceBusMessage(inMsg.Body) { MessageId = $"{++messageIdCount:0000}" };
+                            await sender.SendMessageAsync(outMsg, exit);
 
                             Log.Debug("Complete/Commit");
-                            using (var scope = UseTransactions.Value ? new TransactionScope(ctx!, TransactionScopeAsyncFlowOption.Enabled) : null)
-                            {
-                                await receiver.CompleteMessageAsync(inMsg, exit);
-                                scope?.Complete();
-                            }
-                            ctx?.Commit();
+                            await receiver.CompleteMessageAsync(inMsg, exit);
+
+                            scope?.Complete();
                         }
                         catch (ServiceBusException sbe) when (sbe.Reason == ServiceBusFailureReason.MessageLockLost)
                         {
@@ -221,12 +209,7 @@ class Program
                         catch (Exception e)
                         {
                             Log.Error(e, "Process message failed");
-                            using (var scope = UseTransactions.Value ? new TransactionScope(ctx!, TransactionScopeAsyncFlowOption.Enabled) : null)
-                            {
-                                await receiver.AbandonMessageAsync(inMsg, null, default); //Try to abandon even while crashing to release message ASAP
-                                scope?.Complete();
-                            }
-                            ctx?.Rollback();
+                            await receiver.AbandonMessageAsync(inMsg, null, default); //Try to abandon even while crashing to release message ASAP
                         }
                     }
                     catch (OperationCanceledException)
