@@ -162,6 +162,31 @@ class Program
 
                         Log.Information("#Delivery:{0:000} Delay:{1:mm\\:ss}", inMsg.DeliveryCount, processingDuration);
 
+                        using var doneCts = CancellationTokenSource.CreateLinkedTokenSource(exit);
+                        doneCts.CancelAfter(processingDuration);
+
+                        var renewalReceiver = UseReceiverPerMessage!.Value
+                            ? client.CreateReceiver(QueueName)
+                            : receiver;
+
+                        while (!doneCts.IsCancellationRequested)
+                        {
+                            var remaining = inMsg.LockedUntil - DateTimeOffset.UtcNow;
+                            var buffer = TimeSpan.FromTicks(Math.Min(remaining.Ticks / 2, TimeSpan.FromSeconds(10).Ticks));
+                            remaining -= buffer;
+
+                            Log.Debug("Locked until {0:T}, renewal in {1:N}s", inMsg.LockedUntil, remaining.TotalSeconds);
+
+                            if (remaining.Ticks > 1)
+                            {
+                                // Prevents FirstChanceException AppDomain event
+                                var task = await Task.Delay(remaining, doneCts.Token).ContinueWith(t => t, TaskContinuationOptions.ExecuteSynchronously); 
+                                if (task.IsCanceled) break;
+                            }
+
+                            await renewalReceiver.RenewMessageLockAsync(inMsg, exit);
+                        }
+
                         using var ctx = UseTransactions!.Value ? new CommittableTransaction(new TransactionOptions
                         {
                             IsolationLevel = IsolationLevel.Serializable,
@@ -170,31 +195,6 @@ class Program
 
                         try
                         {
-                            using var doneCts = CancellationTokenSource.CreateLinkedTokenSource(exit);
-                            doneCts.CancelAfter(processingDuration);
-
-                            var renewalReceiver = UseReceiverPerMessage!.Value
-                                ? client.CreateReceiver(QueueName)
-                                : receiver;
-
-                            while (!doneCts.IsCancellationRequested)
-                            {
-                                var remaining = inMsg.LockedUntil - DateTimeOffset.UtcNow;
-                                var buffer = TimeSpan.FromTicks(Math.Min(remaining.Ticks / 2, TimeSpan.FromSeconds(10).Ticks));
-                                remaining -= buffer;
-
-                                Log.Debug("Locked until {0:T}, renewal in {1:N}s", inMsg.LockedUntil, remaining.TotalSeconds);
-
-                                if (remaining.Ticks > 1)
-                                {
-                                    // Prevents FirstChanceException AppDomain event
-                                    var task = await Task.Delay(remaining, doneCts.Token).ContinueWith(t => t, TaskContinuationOptions.ExecuteSynchronously); 
-                                    if (task.IsCanceled) break;
-                                }
-
-                                await renewalReceiver.RenewMessageLockAsync(inMsg, exit);
-                            }
-
                             Log.Debug("SendMessageAsync");
                             Task sendTask;
                             using (var scope = UseTransactions.Value ? new TransactionScope(ctx!, TransactionScopeAsyncFlowOption.Enabled) : null)
