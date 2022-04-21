@@ -18,12 +18,12 @@ class Program
 {
     [Option] public string? ConnectionString { get; set; } = Environment.GetEnvironmentVariable("AzureServiceBus_ConnectionString");
     [Option] public TimeSpan LockDuration { get; set; } = TimeSpan.FromMinutes(5);
-    [Option] public TimeSpan ProcessingDuration { get; set; } = TimeSpan.FromMinutes(12);
+    [Option] public TimeSpan ProcessingDuration { get; set; } = TimeSpan.FromMinutes(17);
     [Option] public int MessageCount { get; set; } = 1;
     [Option] public int ConcurrencyLimit { get; set; } = Environment.ProcessorCount;
     [Option] public string QueueName { get; set; } = "lockrenewal-" + DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
     [Option] public TimeSpan MaximumTimeout { get; set; } = TimeSpan.FromHours(2);
-    [Option] public bool? UseReceiverPerMessage { get; set; } = true;
+    [Option] public bool? UseReceiverPerMessage { get; set; } = false;
     [Option] public bool? UseTransactions { get; set; } = true;
 
     static Task Main(string[] args)
