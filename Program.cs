@@ -151,14 +151,20 @@ class Program
                 {
                     try
                     {
+                        Log.Verbose("ReceiveMessageAsync");
+
                         // Prevents FirstChanceException AppDomain event
-                        var receiveTask = receiver.ReceiveMessageAsync(TimeSpan.MaxValue, exit).ContinueWith(t => t, TaskContinuationOptions.ExecuteSynchronously);
+                        var receiveTask = receiver.ReceiveMessageAsync(TimeSpan.FromMinutes(4), exit).ContinueWith(t => t, TaskContinuationOptions.ExecuteSynchronously);
 
                         if (receiveTask.IsCanceled) return;
 
                         var inMsg = receiveTask.Result.Result;
 
-                        if (inMsg == null) return;
+                        if (inMsg == null)
+                        {
+                            Log.Verbose("No result");
+                            return;
+                        }
 
                         using var l = LogContext.PushProperty("Id", inMsg.MessageId);
 
